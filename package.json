@@ -1,0 +1,17 @@
+{
+  "name": "sfvd",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm -w apps/web run dev",
+    "dev:api": "npm -w apps/api run start:dev",
+    "dev:worker": "npm -w apps/worker run start:dev",
+    "dev:mock": "npm -w apps/mock-generator run dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
