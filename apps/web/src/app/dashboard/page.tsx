@@ -36,17 +36,41 @@ export default function DashboardPage() {
   usePolling(() => void load(), 30_000);
   useEffect(() => void load(), []);
 
+  const summary = data
+    ? {
+        zonesTotal: data.zones.length,
+        zonesOnline: data.zones.filter((z) => z.device.online).length,
+        zonesOffline: data.zones.filter((z) => !z.device.online).length,
+        alertsTotal: data.zones.reduce((sum, z) => sum + z.activeAlerts, 0),
+        offlineAfterMin: data.offlineAfterMin,
+      }
+    : null;
+
   return (
     <main>
       <h1 className="page-title">Dashboard</h1>
       {error ? <p className="error">{error}</p> : null}
       {!data ? <p className="muted">Loading...</p> : null}
       {data ? (
-        <div className="grid grid-cards">
-          {data.zones.map((z) => (
-            <ZoneCard key={z.zoneId} zone={z} />
-          ))}
-        </div>
+        <>
+          {summary ? (
+            <section className="card" style={{ padding: 10, marginBottom: 10 }}>
+              <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+                <Stat label="Zones" value={String(summary.zonesTotal)} />
+                <Stat label="Online" value={String(summary.zonesOnline)} />
+                <Stat label="Offline" value={String(summary.zonesOffline)} />
+                <Stat label="Active alerts" value={String(summary.alertsTotal)} tone={summary.alertsTotal > 0 ? 'bad' : 'muted'} />
+                <Stat label="Offline after" value={`${summary.offlineAfterMin} min`} />
+              </div>
+            </section>
+          ) : null}
+
+          <div className="grid grid-cards">
+            {data.zones.map((z) => (
+              <ZoneCard key={z.zoneId} zone={z} />
+            ))}
+          </div>
+        </>
       ) : null}
     </main>
   );
@@ -104,6 +128,20 @@ function Metric({ label, value, unit }: { label: string; value: number | undefin
       <div className="metric-value">
         {typeof value === 'number' ? value.toFixed(2) : 'N/A'}
         {unit ? <span className="metric-unit">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'bad' | 'muted' }) {
+  return (
+    <div className="metric" style={{ minHeight: 52 }}>
+      <div className="metric-label">
+        <span>{label}</span>
+        <span className="dot" style={{ width: 6, height: 6, background: 'rgba(19,23,20,0.28)' }} />
+      </div>
+      <div className="metric-value" style={{ marginTop: 4, fontSize: 15, color: tone === 'bad' ? 'var(--bad)' : undefined }}>
+        {value}
       </div>
     </div>
   );
