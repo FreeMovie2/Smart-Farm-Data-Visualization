@@ -20,6 +20,7 @@ type AlertsResponse = {
 export default function AlertsPage() {
   const [data, setData] = useState<AlertsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [queryText, setQueryText] = useState('');
 
   const load = async () => {
     try {
@@ -42,7 +43,15 @@ export default function AlertsPage() {
     }
   };
 
-  const rows = useMemo(() => data?.alerts ?? [], [data]);
+  const rows = useMemo(() => {
+    const all = data?.alerts ?? [];
+    const q = queryText.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((a) => {
+      const hay = `${a.zoneId} ${a.type} ${a.severity} ${a.status} ${a.message}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [data, queryText]);
 
   return (
     <main>
@@ -51,7 +60,22 @@ export default function AlertsPage() {
       {!data ? <p className="muted">Loading...</p> : null}
 
       {data ? (
-        <div className="table-wrap">
+        <>
+          <section className="card" style={{ padding: 10, marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {rows.length} alerts
+              </div>
+              <input
+                className="input input--compact"
+                value={queryText}
+                onChange={(e) => setQueryText(e.target.value)}
+                placeholder="Filter (zone, type, message)"
+              />
+            </div>
+          </section>
+
+          <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
@@ -89,6 +113,7 @@ export default function AlertsPage() {
             </tbody>
           </table>
         </div>
+        </>
       ) : null}
     </main>
   );

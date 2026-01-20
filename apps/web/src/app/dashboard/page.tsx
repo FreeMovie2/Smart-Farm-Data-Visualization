@@ -19,10 +19,13 @@ type DashboardResponse = {
 };
 
 type ZoneSummary = DashboardResponse['zones'][number];
+type HealthResponse = { ok: boolean };
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [health, setHealth] = useState<{ ok: boolean; checkedAt: string } | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -33,8 +36,21 @@ export default function DashboardPage() {
     }
   };
 
+  const loadHealth = async () => {
+    try {
+      setHealthError(null);
+      const res = await apiGet<HealthResponse>('/health');
+      setHealth({ ok: !!res.ok, checkedAt: new Date().toISOString() });
+    } catch (e) {
+      setHealthError((e as Error).message);
+      setHealth({ ok: false, checkedAt: new Date().toISOString() });
+    }
+  };
+
   usePolling(() => void load(), 30_000);
+  usePolling(() => void loadHealth(), 10_000);
   useEffect(() => void load(), []);
+  useEffect(() => void loadHealth(), []);
 
   const summary = data
     ? {
@@ -46,6 +62,14 @@ export default function DashboardPage() {
       }
     : null;
 
+  const lastDataAt = data
+    ? data.zones
+        .map((z) => z.lastUpdatedAt)
+        .filter((v): v is string => typeof v === 'string')
+        .sort()
+        .at(-1) ?? null
+    : null;
+
   return (
     <main>
       <h1 className="page-title">Dashboard</h1>
@@ -55,13 +79,20 @@ export default function DashboardPage() {
         <>
           {summary ? (
             <section className="card" style={{ padding: 10, marginBottom: 10 }}>
-              <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+              <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                 <Stat label="Zones" value={String(summary.zonesTotal)} />
                 <Stat label="Online" value={String(summary.zonesOnline)} />
                 <Stat label="Offline" value={String(summary.zonesOffline)} />
                 <Stat label="Active alerts" value={String(summary.alertsTotal)} tone={summary.alertsTotal > 0 ? 'bad' : 'muted'} />
                 <Stat label="Offline after" value={`${summary.offlineAfterMin} min`} />
+                <Stat label="API" value={health?.ok ? 'OK' : 'Down'} tone={health?.ok ? 'muted' : 'bad'} />
+                <Stat label="Last data" value={lastDataAt ? formatAge(lastDataAt) : 'N/A'} tone={lastDataAt ? 'muted' : 'bad'} />
               </div>
+              {healthError ? (
+                <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+                  API check: {healthError}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -145,4 +176,15 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'ba
       </div>
     </div>
   );
+}
+
+function formatAge(iso: string) {
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return iso;
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
 }
