@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../../lib/api';
@@ -41,42 +41,57 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
 
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Zone: {zoneId}</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      <h1 className="page-title">Zone: {zoneId}</h1>
+      {error ? <p className="error">{error}</p> : null}
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-        <label style={{ fontSize: 14 }}>
-          Metric:{' '}
-          <select value={metricKey} onChange={(e) => setMetricKey(e.target.value)}>
-            {availableMetricKeys.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-        </label>
-        <a href="/dashboard" style={{ fontSize: 14 }}>
-          ← Back
-        </a>
-      </div>
-
-      {series ? <LineChart title={`${metricKey} (rollup 5m)`} points={series.points} /> : <p>Loading chart…</p>}
-
-      <h2 style={{ marginTop: 16 }}>Latest</h2>
-      {latest ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-          {Object.entries(latest.metrics)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([k, v]) => (
-              <div key={k} style={{ border: '1px solid #eee', borderRadius: 10, padding: 10 }}>
-                <div style={{ fontSize: 12, color: '#666' }}>{k}</div>
-                <div style={{ fontWeight: 700 }}>{v.toFixed(3)}</div>
-              </div>
-            ))}
+      <section className="card" style={{ padding: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            Metric
+            <select className="input input--compact" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}>
+              {availableMetricKeys.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+          <a className="link" href="/dashboard">
+            Back
+          </a>
         </div>
-      ) : (
-        <p>Loading…</p>
-      )}
+
+        <div style={{ marginTop: 8 }}>
+          {series ? <LineChart title={`${metricKey} (rollup 5m)`} points={series.points} /> : <p className="muted">Loading chart...</p>}
+        </div>
+      </section>
+
+      <section className="card" style={{ padding: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Latest</div>
+          <div className="muted" style={{ fontSize: 11 }}>
+            {latest?.lastUpdatedAt ? `Last update: ${latest.lastUpdatedAt}` : ''}
+          </div>
+        </div>
+
+        {!latest ? <p className="muted" style={{ margin: '8px 0 0' }}>Loading...</p> : null}
+
+        {latest ? (
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 10 }}>
+            {Object.entries(latest.metrics)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => (
+                <div key={k} className="metric">
+                  <div className="metric-label">
+                    <span>{k}</span>
+                    <span className="dot" style={{ width: 6, height: 6, background: 'rgba(19,23,20,0.28)' }} />
+                  </div>
+                  <div className="metric-value">{v.toFixed(3)}</div>
+                </div>
+              ))}
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 }

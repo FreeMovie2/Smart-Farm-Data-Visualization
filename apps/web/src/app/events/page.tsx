@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../lib/api';
@@ -49,26 +49,36 @@ export default function EventsPage() {
 
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Events</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      <h1 className="page-title">Events</h1>
+      {error ? <p className="error">{error}</p> : null}
 
-      <section style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, marginBottom: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Create (admin only)</div>
+      <section className="card" style={{ padding: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Create (admin only)</div>
+          <div className="muted" style={{ fontSize: 11 }}>
+            Role: <span style={{ fontFamily: 'var(--mono)' }}>{role}</span>
+          </div>
+        </div>
+
         {role !== 'admin' ? (
-          <p style={{ marginTop: 0, fontSize: 12, color: '#666' }}>Read-only for role: {role}. Switch role to Admin to create events.</p>
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+            Read-only for this role. Switch role to Admin to create events.
+          </p>
         ) : null}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <label>
-            Zone:{' '}
-            <select value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '160px 200px 1fr auto', gap: 8, marginTop: 10, alignItems: 'center' }}>
+          <label className="muted" style={{ fontSize: 12 }}>
+            Zone
+            <select className="input" value={zoneId} onChange={(e) => setZoneId(e.target.value)} style={{ width: '100%', marginTop: 4 }}>
               <option value="zone-1">zone-1</option>
               <option value="zone-2">zone-2</option>
               <option value="zone-3">zone-3</option>
             </select>
           </label>
-          <label>
-            Type:{' '}
-            <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+
+          <label className="muted" style={{ fontSize: 12 }}>
+            Type
+            <select className="input" value={eventType} onChange={(e) => setEventType(e.target.value)} style={{ width: '100%', marginTop: 4 }}>
               <option value="Irrigation">Irrigation</option>
               <option value="Fertigation">Fertigation</option>
               <option value="Maintenance">Maintenance</option>
@@ -76,46 +86,48 @@ export default function EventsPage() {
               <option value="System">System</option>
             </select>
           </label>
-          <label>
-            Title:{' '}
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Irrigation" />
+
+          <label className="muted" style={{ fontSize: 12 }}>
+            Title
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Irrigation" style={{ width: '100%', marginTop: 4 }} />
           </label>
-          <button onClick={() => void create()} disabled={role !== 'admin' || !title.trim()} style={{ cursor: 'pointer' }}>
+
+          <button className="btn btn-primary" onClick={() => void create()} disabled={role !== 'admin' || !title.trim()}>
             Create
           </button>
         </div>
       </section>
 
-      {!data ? <p>Loading…</p> : null}
+      {!data ? <p className="muted">Loading...</p> : null}
+
       {data ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={th}>Time</th>
-              <th style={th}>Zone</th>
-              <th style={th}>Type</th>
-              <th style={th}>Title</th>
-              <th style={th}>By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.events.map((e) => (
-              <tr key={e.eventId} style={{ borderTop: '1px solid #eee' }}>
-                <td style={td}>{e.ts}</td>
-                <td style={td}>
-                  <a href={`/zones/${encodeURIComponent(e.zoneId)}`}>{e.zoneId}</a>
-                </td>
-                <td style={td}>{e.eventType}</td>
-                <td style={td}>{e.title}</td>
-                <td style={td}>{e.createdBy ?? '—'}</td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Zone</th>
+                <th>Type</th>
+                <th>Title</th>
+                <th>By</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.events.map((e) => (
+                <tr key={e.eventId}>
+                  <td>{e.ts}</td>
+                  <td>
+                    <a className="link" href={`/zones/${encodeURIComponent(e.zoneId)}`}> {e.zoneId}</a>
+                  </td>
+                  <td>{e.eventType}</td>
+                  <td>{e.title}</td>
+                  <td>{e.createdBy ?? 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
     </main>
   );
 }
-
-const th: React.CSSProperties = { fontSize: 12, color: '#666', padding: '8px 6px' };
-const td: React.CSSProperties = { padding: '10px 6px', fontSize: 13, verticalAlign: 'top' };

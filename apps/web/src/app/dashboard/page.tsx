@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '../../lib/api';
@@ -18,6 +18,8 @@ type DashboardResponse = {
   }>;
 };
 
+type ZoneSummary = DashboardResponse['zones'][number];
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,34 +38,13 @@ export default function DashboardPage() {
 
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Dashboard</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      {!data ? <p>Loading…</p> : null}
+      <h1 className="page-title">Dashboard</h1>
+      {error ? <p className="error">{error}</p> : null}
+      {!data ? <p className="muted">Loading...</p> : null}
       {data ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+        <div className="grid grid-cards">
           {data.zones.map((z) => (
-            <a
-              key={z.zoneId}
-              href={`/zones/${encodeURIComponent(z.zoneId)}`}
-              style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, textDecoration: 'none', color: 'inherit' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <div style={{ fontWeight: 700 }}>{z.zoneId}</div>
-                <div style={{ fontSize: 12, color: '#666' }}>{z.device.online ? 'Online' : 'Offline'}</div>
-              </div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{z.device.name ?? z.deviceId ?? ''}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10, fontSize: 13 }}>
-                <Kpi label="Temp" value={z.kpis.airTemp} suffix="°C" />
-                <Kpi label="RH" value={z.kpis.airRH} suffix="%" />
-                <Kpi label="VPD" value={z.kpis.vpd} suffix="kPa" />
-                <Kpi label="Soil" value={z.kpis.soilAvg} suffix="%" />
-                <Kpi label="PAR" value={z.kpis.par} />
-                <Kpi label="EC" value={z.kpis.ec} />
-              </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: '#666' }}>
-                Active alerts: <b>{z.activeAlerts}</b>
-              </div>
-            </a>
+            <ZoneCard key={z.zoneId} zone={z} />
           ))}
         </div>
       ) : null}
@@ -71,15 +52,59 @@ export default function DashboardPage() {
   );
 }
 
-function Kpi({ label, value, suffix }: { label: string; value: number | undefined; suffix?: string }) {
+function ZoneCard({ zone }: { zone: ZoneSummary }) {
+  const deviceLabel = zone.device.name ?? zone.deviceId ?? '';
+  const isOnline = zone.device.online;
+
   return (
-    <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }}>
-      <div style={{ fontSize: 11, color: '#666' }}>{label}</div>
-      <div style={{ fontWeight: 700 }}>
-        {typeof value === 'number' ? value.toFixed(2) : '—'}
-        {suffix ? <span style={{ fontWeight: 400, color: '#666', marginLeft: 4 }}>{suffix}</span> : null}
+    <a className="card card-link zone-card" href={`/zones/${encodeURIComponent(zone.zoneId)}`}
+    >
+      <div className="zone-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="zone-title">{zone.zoneId}</div>
+          <div className="zone-subtitle">{deviceLabel}</div>
+          {zone.lastUpdatedAt ? <div className="zone-meta">Last update: {zone.lastUpdatedAt}</div> : null}
+        </div>
+
+        <div className="badge">
+          <span className={isOnline ? 'dot dot-ok' : 'dot dot-bad'} />
+          {isOnline ? 'Online' : 'Offline'}
+        </div>
+      </div>
+
+      <div className="zone-body">
+        <div className="metric-grid">
+          <Metric label="Temp" value={zone.kpis.airTemp} unit={'\u00B0C'} />
+          <Metric label="RH" value={zone.kpis.airRH} unit="%" />
+          <Metric label="VPD" value={zone.kpis.vpd} unit="kPa" />
+          <Metric label="Soil Avg" value={zone.kpis.soilAvg} unit="%" />
+          <Metric label="PAR" value={zone.kpis.par} />
+          <Metric label="EC" value={zone.kpis.ec} />
+        </div>
+
+        <div className="zone-footer">
+          <div>
+            Active alerts:{' '}
+            <span className={zone.activeAlerts > 0 ? 'alerts-bad' : undefined}>{zone.activeAlerts}</span>
+          </div>
+          <span className="link">Details -&gt;</span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Metric({ label, value, unit }: { label: string; value: number | undefined; unit?: string }) {
+  return (
+    <div className="metric">
+      <div className="metric-label">
+        <span>{label}</span>
+        <span className="dot" style={{ width: 6, height: 6, background: 'rgba(19,23,20,0.28)' }} />
+      </div>
+      <div className="metric-value">
+        {typeof value === 'number' ? value.toFixed(2) : 'N/A'}
+        {unit ? <span className="metric-unit">{unit}</span> : null}
       </div>
     </div>
   );
 }
-

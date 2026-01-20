@@ -24,14 +24,28 @@ export function LineChart({ title, points }: { title: string; points: Point[] })
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.setOption({
-      title: { text: title, left: 'center', textStyle: { fontSize: 12 } },
-      grid: { left: 40, right: 20, top: 30, bottom: 30 },
-      xAxis: { type: 'time' },
-      yAxis: { type: 'value', scale: true },
+      color: ['#1f7a55'],
+      title: { text: title, left: 'center', textStyle: { fontSize: 11 } },
+      grid: { left: 44, right: 16, top: 26, bottom: 26 },
+      xAxis: {
+        type: 'time',
+        axisLine: { lineStyle: { color: 'rgba(19, 23, 20, 0.28)' } },
+        axisLabel: { fontSize: 10, color: 'rgba(19, 23, 20, 0.62)' },
+        splitLine: { show: true, lineStyle: { color: 'rgba(19, 23, 20, 0.06)' } },
+      },
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLine: { lineStyle: { color: 'rgba(19, 23, 20, 0.28)' } },
+        axisLabel: { fontSize: 10, color: 'rgba(19, 23, 20, 0.62)' },
+        splitLine: { show: true, lineStyle: { color: 'rgba(19, 23, 20, 0.08)' } },
+      },
       series: [
         {
           type: 'line',
           showSymbol: false,
+          smooth: true,
+          lineStyle: { width: 2 },
           data: points.filter((p) => p.value !== null).map((p) => [p.ts, p.value]),
         },
       ],
@@ -39,6 +53,6 @@ export function LineChart({ title, points }: { title: string; points: Point[] })
     });
   }, [points, title]);
 
-  return <div ref={containerRef} style={{ height: 280, width: '100%', border: '1px solid #eee', borderRadius: 8 }} />;
+  return <div ref={containerRef} className="chart-card" />;
 }
 

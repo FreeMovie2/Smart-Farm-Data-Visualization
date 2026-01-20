@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPost } from '../../lib/api';
 import { DEFAULT_FARM_ID } from '../../lib/config';
 import { usePolling } from '../../lib/polling';
@@ -42,51 +42,61 @@ export default function AlertsPage() {
     }
   };
 
+  const rows = useMemo(() => data?.alerts ?? [], [data]);
+
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Alerts</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      {!data ? <p>Loading…</p> : null}
+      <h1 className="page-title">Alerts</h1>
+      {error ? <p className="error">{error}</p> : null}
+      {!data ? <p className="muted">Loading...</p> : null}
+
       {data ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={th}>ID</th>
-              <th style={th}>Zone</th>
-              <th style={th}>Type</th>
-              <th style={th}>Severity</th>
-              <th style={th}>Status</th>
-              <th style={th}>Message</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.alerts.map((a) => (
-              <tr key={a.alertId} style={{ borderTop: '1px solid #eee' }}>
-                <td style={td}>{a.alertId}</td>
-                <td style={td}>
-                  <a href={`/zones/${encodeURIComponent(a.zoneId)}`}>{a.zoneId}</a>
-                </td>
-                <td style={td}>{a.type}</td>
-                <td style={td}>{a.severity}</td>
-                <td style={td}>{a.status}</td>
-                <td style={td}>{a.message}</td>
-                <td style={td}>
-                  {a.status === 'active' ? (
-                    <button onClick={() => void ack(a.alertId)} style={{ cursor: 'pointer' }}>
-                      Ack
-                    </button>
-                  ) : null}
-                </td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Zone</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((a) => (
+                <tr key={a.alertId}>
+                  <td>{a.alertId}</td>
+                  <td>
+                    <a className="link" href={`/zones/${encodeURIComponent(a.zoneId)}`}> {a.zoneId}</a>
+                  </td>
+                  <td>{a.type}</td>
+                  <td>
+                    <span className={`badge ${severityClass(a.severity)}`}>{a.severity}</span>
+                  </td>
+                  <td>{a.status}</td>
+                  <td>{a.message}</td>
+                  <td>
+                    {a.status === 'active' ? (
+                      <button className="btn btn-primary" onClick={() => void ack(a.alertId)}>
+                        Ack
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
     </main>
   );
 }
 
-const th: React.CSSProperties = { fontSize: 12, color: '#666', padding: '8px 6px' };
-const td: React.CSSProperties = { padding: '10px 6px', fontSize: 13, verticalAlign: 'top' };
-
+function severityClass(severity: string) {
+  const key = severity.toLowerCase();
+  if (key.includes('critical')) return 'badge-critical';
+  if (key.includes('warn')) return 'badge-warn';
+  return 'badge-info';
+}

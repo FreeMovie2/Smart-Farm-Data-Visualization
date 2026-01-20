@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '../../lib/api';
@@ -27,37 +27,41 @@ export default function DevicesPage() {
 
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Devices</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      {!data ? <p>Loading…</p> : null}
+      <h1 className="page-title">Devices</h1>
+      {error ? <p className="error">{error}</p> : null}
+      {!data ? <p className="muted">Loading...</p> : null}
+
       {data ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={th}>Zone</th>
-              <th style={th}>Device</th>
-              <th style={th}>Online</th>
-              <th style={th}>Last seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.devices.map((d) => (
-              <tr key={d.deviceId} style={{ borderTop: '1px solid #eee' }}>
-                <td style={td}>
-                  <a href={`/zones/${encodeURIComponent(d.zoneId)}`}>{d.zoneId}</a>
-                </td>
-                <td style={td}>{d.name}</td>
-                <td style={td}>{d.online ? 'Yes' : 'No'}</td>
-                <td style={td}>{d.lastSeenAt ?? '—'}</td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Zone</th>
+                <th>Device</th>
+                <th>Status</th>
+                <th>Last seen</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.devices.map((d) => (
+                <tr key={d.deviceId}>
+                  <td>
+                    <a className="link" href={`/zones/${encodeURIComponent(d.zoneId)}`}> {d.zoneId}</a>
+                  </td>
+                  <td>{d.name}</td>
+                  <td>
+                    <span className="badge">
+                      <span className={d.online ? 'dot dot-ok' : 'dot dot-bad'} />
+                      {d.online ? 'Online' : 'Offline'}
+                    </span>
+                  </td>
+                  <td>{d.lastSeenAt ?? 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
     </main>
   );
 }
-
-const th: React.CSSProperties = { fontSize: 12, color: '#666', padding: '8px 6px' };
-const td: React.CSSProperties = { padding: '10px 6px', fontSize: 13, verticalAlign: 'top' };
-

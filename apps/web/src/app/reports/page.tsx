@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../lib/api';
@@ -78,7 +78,7 @@ export default function ReportsPage() {
   useEffect(() => void loadComparison(), [compareMetricKey]);
   useEffect(() => void loadHealth(), []);
 
-  const rows = useMemo(() => {
+  const summaryRows = useMemo(() => {
     if (!data) return [];
     return Object.entries(data.metrics).sort(([a], [b]) => a.localeCompare(b));
   }, [data]);
@@ -99,139 +99,173 @@ export default function ReportsPage() {
 
   return (
     <main>
-      <h1 style={{ marginTop: 0 }}>Reports</h1>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+      <h1 className="page-title">Reports</h1>
+      {error ? <p className="error">{error}</p> : null}
 
-      <section style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, marginBottom: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Summary</div>
-        <label>
-          Zone:{' '}
-          <select value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
-            <option value="zone-1">zone-1</option>
-            <option value="zone-2">zone-2</option>
-            <option value="zone-3">zone-3</option>
-          </select>
-        </label>
-        {!data ? <p>Loading…</p> : null}
-        {data ? (
-          <>
-            <p style={{ fontSize: 12, color: '#666' }}>
-              Range: {data.from} → {data.to}
-            </p>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left' }}>
-                  <th style={th}>Metric</th>
-                  <th style={th}>Avg</th>
-                  <th style={th}>Min</th>
-                  <th style={th}>Max</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(([k, v]) => (
-                  <tr key={k} style={{ borderTop: '1px solid #eee' }}>
-                    <td style={td}>{k}</td>
-                    <td style={td}>{v.avg.toFixed(3)}</td>
-                    <td style={td}>{v.min.toFixed(3)}</td>
-                    <td style={td}>{v.max.toFixed(3)}</td>
+      <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 10 }}>
+        <section className="card" style={{ padding: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Summary</div>
+            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              Zone
+              <select className="input input--compact" value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                <option value="zone-1">zone-1</option>
+                <option value="zone-2">zone-2</option>
+                <option value="zone-3">zone-3</option>
+              </select>
+            </label>
+          </div>
+
+          {!data ? <p className="muted" style={{ margin: '8px 0 0' }}>Loading...</p> : null}
+
+          {data ? (
+            <>
+              <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+                Range: <span style={{ fontFamily: 'var(--mono)' }}>{data.from}</span> - <span style={{ fontFamily: 'var(--mono)' }}>{data.to}</span>
+              </div>
+              <div className="table-wrap" style={{ marginTop: 8 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Avg</th>
+                      <th>Min</th>
+                      <th>Max</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summaryRows.map(([k, v]) => (
+                      <tr key={k}>
+                        <td>{k}</td>
+                        <td>{v.avg.toFixed(3)}</td>
+                        <td>{v.min.toFixed(3)}</td>
+                        <td>{v.max.toFixed(3)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+        </section>
+
+        <section className="card" style={{ padding: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Zone Comparison</div>
+            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              Metric
+              <select className="input input--compact" value={compareMetricKey} onChange={(e) => setCompareMetricKey(e.target.value)}>
+                <option value="airTemp">airTemp</option>
+                <option value="airRH">airRH</option>
+                <option value="soil1">soil1</option>
+                <option value="soil2">soil2</option>
+                <option value="soil3">soil3</option>
+                <option value="par">par</option>
+                <option value="ec">ec</option>
+                <option value="ph">ph</option>
+              </select>
+            </label>
+          </div>
+
+          {!compare ? <p className="muted" style={{ margin: '8px 0 0' }}>Loading...</p> : null}
+
+          {compare ? (
+            <div className="table-wrap" style={{ marginTop: 8 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Zone</th>
+                    <th>Avg</th>
+                    <th>Min</th>
+                    <th>Max</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : null}
-      </section>
+                </thead>
+                <tbody>
+                  {compare.zones.map((z) => (
+                    <tr key={z.zoneId}>
+                      <td>
+                        <a className="link" href={`/zones/${encodeURIComponent(z.zoneId)}`}> {z.zoneId}</a>
+                      </td>
+                      <td>{z.avg.toFixed(3)}</td>
+                      <td>{z.min.toFixed(3)}</td>
+                      <td>{z.max.toFixed(3)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
 
-      <section style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, marginBottom: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Zone Comparison</div>
-        <label>
-          Metric:{' '}
-          <select value={compareMetricKey} onChange={(e) => setCompareMetricKey(e.target.value)}>
-            <option value="airTemp">airTemp</option>
-            <option value="airRH">airRH</option>
-            <option value="soil1">soil1</option>
-            <option value="soil2">soil2</option>
-            <option value="soil3">soil3</option>
-            <option value="par">par</option>
-            <option value="ec">ec</option>
-            <option value="ph">ph</option>
-          </select>
-        </label>
-        {!compare ? <p>Loading…</p> : null}
-        {compare ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}>
-                <th style={th}>Zone</th>
-                <th style={th}>Avg</th>
-                <th style={th}>Min</th>
-                <th style={th}>Max</th>
-              </tr>
-            </thead>
-            <tbody>
-              {compare.zones.map((z) => (
-                <tr key={z.zoneId} style={{ borderTop: '1px solid #eee' }}>
-                  <td style={td}>
-                    <a href={`/zones/${encodeURIComponent(z.zoneId)}`}>{z.zoneId}</a>
-                  </td>
-                  <td style={td}>{z.avg.toFixed(3)}</td>
-                  <td style={td}>{z.min.toFixed(3)}</td>
-                  <td style={td}>{z.max.toFixed(3)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+        <section className="card" style={{ padding: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Sensor Health</div>
+            <div className="muted" style={{ fontSize: 11 }}>
+              Table view
+            </div>
+          </div>
 
-      <section style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, marginBottom: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Sensor Health</div>
-        {!health ? <p>Loading…</p> : null}
-        {health ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}>
-                <th style={th}>Zone</th>
-                <th style={th}>Device</th>
-                <th style={th}>Online</th>
-                <th style={th}>Last seen</th>
-                <th style={th}>Last reading</th>
-                <th style={th}>Points</th>
-                <th style={th}>Metrics</th>
-              </tr>
-            </thead>
-            <tbody>
-              {health.devices.map((d) => (
-                <tr key={d.deviceId} style={{ borderTop: '1px solid #eee' }}>
-                  <td style={td}>{d.zoneId}</td>
-                  <td style={td}>{d.name}</td>
-                  <td style={td}>{d.online ? 'Yes' : 'No'}</td>
-                  <td style={td}>{d.lastSeenAt ?? '—'}</td>
-                  <td style={td}>{d.lastReadingAt ?? '—'}</td>
-                  <td style={td}>{d.pointsInWindow}</td>
-                  <td style={td}>{d.distinctMetricsInWindow}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+          {!health ? <p className="muted" style={{ margin: '8px 0 0' }}>Loading...</p> : null}
 
-      <section style={{ border: '1px solid #eee', borderRadius: 10, padding: 12 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Export CSV</div>
-        <p style={{ fontSize: 12, color: '#666' }}>Exports the selected zone + metric (rollup=5m, default range=24h).</p>
-        <a href={exportUrl} style={{ display: 'inline-block' }}>
-          Download CSV
-        </a>
-        <div style={{ height: 10 }} />
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Export PDF (optional)</div>
-        <a href={summaryPdfUrl} style={{ display: 'inline-block' }}>
-          Download Summary PDF
-        </a>
-      </section>
+          {health ? (
+            <div className="table-wrap" style={{ marginTop: 8 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Zone</th>
+                    <th>Device</th>
+                    <th>Status</th>
+                    <th>Last seen</th>
+                    <th>Last reading</th>
+                    <th>Points</th>
+                    <th>Metrics</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {health.devices.map((d) => (
+                    <tr key={d.deviceId}>
+                      <td>{d.zoneId}</td>
+                      <td>{d.name}</td>
+                      <td>
+                        <span className="badge">
+                          <span className={d.online ? 'dot dot-ok' : 'dot dot-bad'} />
+                          {d.online ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td>{d.lastSeenAt ?? 'N/A'}</td>
+                      <td>{d.lastReadingAt ?? 'N/A'}</td>
+                      <td>{d.pointsInWindow}</td>
+                      <td>{d.distinctMetricsInWindow}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="card" style={{ padding: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Exports</div>
+            <div className="muted" style={{ fontSize: 11 }}>
+              CSV + PDF
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+            <a className="btn btn-primary" href={exportUrl}>
+              Download CSV
+            </a>
+            <a className="btn" href={summaryPdfUrl}>
+              Download Summary PDF
+            </a>
+          </div>
+
+          <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+            CSV exports selected zone + metric (rollup=5m, default range=24h).
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
-
-const th: React.CSSProperties = { fontSize: 12, color: '#666', padding: '8px 6px' };
-const td: React.CSSProperties = { padding: '10px 6px', fontSize: 13, verticalAlign: 'top' };
