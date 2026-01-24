@@ -5,7 +5,6 @@ import { clampInt } from './http.utils';
 
 type ZoneSummary = {
   zoneId: string;
-  deviceId?: string;
   lastUpdatedAt?: string;
   kpis: {
     airTemp?: number;
@@ -17,11 +16,12 @@ type ZoneSummary = {
     ph?: number;
   };
   activeAlerts: number;
-  device: {
+  devices: Array<{
+    deviceId: string;
     name?: string;
     lastSeenAt?: string | null;
     online: boolean;
-  };
+  }>;
 };
 
 @Controller()
@@ -56,13 +56,17 @@ export class DashboardController {
       for (const row of devices.rows as Array<{ zone_id: string; device_id: string; name: string; last_seen_at: Date | null }>) {
         const lastSeenAt = row.last_seen_at?.toISOString() ?? null;
         const online = row.last_seen_at ? now - row.last_seen_at.getTime() <= offlineAfterMs : false;
-        zoneSummaries.set(row.zone_id, {
-          zoneId: row.zone_id,
-          deviceId: row.device_id,
-          kpis: {},
-          activeAlerts: 0,
-          device: { name: row.name, lastSeenAt, online },
-        });
+        const existing = zoneSummaries.get(row.zone_id);
+        if (existing) {
+          existing.devices.push({ deviceId: row.device_id, name: row.name, lastSeenAt, online });
+        } else {
+          zoneSummaries.set(row.zone_id, {
+            zoneId: row.zone_id,
+            kpis: {},
+            activeAlerts: 0,
+            devices: [{ deviceId: row.device_id, name: row.name, lastSeenAt, online }],
+          });
+        }
       }
 
       for (const row of activeAlerts.rows as Array<{ zone_id: string; n: number }>) {
@@ -79,13 +83,11 @@ export class DashboardController {
       }>) {
         const zone = zoneSummaries.get(row.zone_id) ?? {
           zoneId: row.zone_id,
-          deviceId: row.device_id,
           kpis: {},
           activeAlerts: 0,
-          device: { online: false, lastSeenAt: null },
+          devices: [],
         };
 
-        zone.deviceId ??= row.device_id;
         const ts = row.ts.toISOString();
         if (!zone.lastUpdatedAt || ts > zone.lastUpdatedAt) zone.lastUpdatedAt = ts;
 

@@ -9,15 +9,19 @@ type LatestResponse = { zoneId: string; lastUpdatedAt?: string; metrics: Record<
 type SeriesResponse = { points: Array<{ ts: string; value: number | null }> };
 type RangePreset = '24h' | '7d' | '30d';
 type Rollup = '5m' | '1h' | 'raw';
+type RangeMode = RangePreset | 'custom';
 
 export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: string }> }) {
   const { zoneId } = use(params);
   const [latest, setLatest] = useState<LatestResponse | null>(null);
   const [series, setSeries] = useState<SeriesResponse | null>(null);
   const [metricKey, setMetricKey] = useState<string>('airTemp');
-  const [range, setRange] = useState<RangePreset>('24h');
+  const [range, setRange] = useState<RangeMode>('24h');
   const [rollup, setRollup] = useState<Rollup>('5m');
   const [error, setError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [customFrom, setCustomFrom] = useState<string>(() => toDateInputValue(daysAgo(7)));
+  const [customTo, setCustomTo] = useState<string>(() => toDateInputValue(new Date()));
 
   const availableMetricKeys = useMemo(() => {
     if (!latest) return ['airTemp', 'airRH', 'soil1', 'soil2', 'soil3', 'par', 'ec', 'ph'];
@@ -28,18 +32,53 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
     if (range === '24h') setRollup('5m');
     if (range === '7d') setRollup('1h');
     if (range === '30d') setRollup('1h');
-  }, [range]);
+    if (range === 'custom') {
+      const from = parseDateInput(customFrom);
+      const to = parseDateInput(customTo);
+      if (!from || !to) return;
+      const diffDays = Math.max(0, Math.floor((endOfDay(to).getTime() - startOfDay(from).getTime()) / (24 * 60 * 60 * 1000)));
+      setRollup(diffDays <= 2 ? '5m' : '1h');
+    }
+  }, [range, customFrom, customTo]);
 
   const load = async () => {
     try {
       setError(null);
-      const to = new Date();
-      const from =
-        range === '24h'
-          ? new Date(to.getTime() - 24 * 60 * 60 * 1000)
-          : range === '7d'
-            ? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
-            : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+      setDateError(null);
+
+      let to: Date;
+      let from: Date;
+
+      if (range === 'custom') {
+        const parsedFrom = parseDateInput(customFrom);
+        const parsedTo = parseDateInput(customTo);
+        if (!parsedFrom || !parsedTo) {
+          setDateError('Select a valid date range.');
+          return;
+        }
+
+        from = startOfDay(parsedFrom);
+        to = endOfDay(parsedTo);
+
+        if (from > to) {
+          setDateError('"From" must be on or before "To".');
+          return;
+        }
+
+        const maxTo = addMonths(from, 3);
+        if (to > maxTo) {
+          setDateError('Range must be within 3 months.');
+          return;
+        }
+      } else {
+        to = new Date();
+        from =
+          range === '24h'
+            ? new Date(to.getTime() - 24 * 60 * 60 * 1000)
+            : range === '7d'
+              ? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
+              : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
       const [l, s] = await Promise.all([
         apiGet<LatestResponse>(`/v1/zones/${encodeURIComponent(zoneId)}/latest`),
         apiGet<SeriesResponse>(
@@ -54,7 +93,7 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
   };
 
   usePolling(() => void load(), 15_000);
-  useEffect(() => void load(), [zoneId, metricKey, range, rollup]);
+  useEffect(() => void load(), [zoneId, metricKey, range, rollup, customFrom, customTo]);
 
   return (
     <main>
@@ -77,12 +116,26 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
 
             <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               Range
-              <select className="input input--compact" value={range} onChange={(e) => setRange(e.target.value as RangePreset)}>
+              <select className="input input--compact" value={range} onChange={(e) => setRange(e.target.value as RangeMode)}>
                 <option value="24h">24h</option>
                 <option value="7d">7d</option>
                 <option value="30d">30d</option>
+                <option value="custom">Custom</option>
               </select>
             </label>
+
+            {range === 'custom' ? (
+              <>
+                <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  From
+                  <input className="input input--compact" type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+                </label>
+                <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  To
+                  <input className="input input--compact" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+                </label>
+              </>
+            ) : null}
 
             <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               Rollup
@@ -97,6 +150,12 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
             Back
           </a>
         </div>
+
+        {dateError ? (
+          <div className="error" style={{ marginTop: 8, marginBottom: 0 }}>
+            {dateError}
+          </div>
+        ) : null}
 
         <div style={{ marginTop: 8 }}>
           {series ? <LineChart title={`${metricKey} (${range}, ${rollup})`} points={series.points} /> : <p className="muted">Loading chart...</p>}
@@ -131,4 +190,39 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
       </section>
     </main>
   );
+}
+
+function daysAgo(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+function toDateInputValue(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseDateInput(value: string) {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+
+function addMonths(d: Date, months: number) {
+  const candidate = new Date(d.getTime());
+  const day = candidate.getDate();
+  candidate.setMonth(candidate.getMonth() + months);
+  // handle month overflow (e.g. Jan 31 + 1 month)
+  if (candidate.getDate() < day) candidate.setDate(0);
+  return endOfDay(candidate);
 }

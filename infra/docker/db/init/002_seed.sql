@@ -11,8 +11,11 @@ ON CONFLICT (zone_id) DO NOTHING;
 
 INSERT INTO devices (device_id, farm_id, zone_id, device_key, name)
 VALUES
-  ('dev-01', 'farm-001', 'zone-1', 'key1', 'Mock Device 01'),
-  ('dev-02', 'farm-001', 'zone-2', 'key2', 'Mock Device 02'),
-  ('dev-03', 'farm-001', 'zone-3', 'key3', 'Mock Device 03')
+  ('dev-01a', 'farm-001', 'zone-1', 'key1a', 'Zone 1 Device A'),
+  ('dev-01b', 'farm-001', 'zone-1', 'key1b', 'Zone 1 Device B'),
+  ('dev-02a', 'farm-001', 'zone-2', 'key2a', 'Zone 2 Device A'),
+  ('dev-02b', 'farm-001', 'zone-2', 'key2b', 'Zone 2 Device B'),
+  ('dev-03a', 'farm-001', 'zone-3', 'key3a', 'Zone 3 Device A'),
+  ('dev-03b', 'farm-001', 'zone-3', 'key3b', 'Zone 3 Device B')
 ON CONFLICT (device_id) DO NOTHING;
 

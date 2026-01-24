@@ -10,11 +10,10 @@ type DashboardResponse = {
   offlineAfterMin: number;
   zones: Array<{
     zoneId: string;
-    deviceId?: string;
     lastUpdatedAt?: string;
     kpis: Record<string, number | undefined>;
     activeAlerts: number;
-    device: { name?: string; lastSeenAt?: string | null; online: boolean };
+    devices: Array<{ deviceId: string; name?: string; lastSeenAt?: string | null; online: boolean }>;
   }>;
 };
 
@@ -55,8 +54,8 @@ export default function DashboardPage() {
   const summary = data
     ? {
         zonesTotal: data.zones.length,
-        zonesOnline: data.zones.filter((z) => z.device.online).length,
-        zonesOffline: data.zones.filter((z) => !z.device.online).length,
+        zonesOnline: data.zones.filter((z) => z.devices.some((d) => d.online)).length,
+        zonesOffline: data.zones.filter((z) => z.devices.every((d) => !d.online)).length,
         alertsTotal: data.zones.reduce((sum, z) => sum + z.activeAlerts, 0),
         offlineAfterMin: data.offlineAfterMin,
       }
@@ -108,8 +107,15 @@ export default function DashboardPage() {
 }
 
 function ZoneCard({ zone }: { zone: ZoneSummary }) {
-  const deviceLabel = zone.device.name ?? zone.deviceId ?? '';
-  const isOnline = zone.device.online;
+  const onlineCount = zone.devices.filter((d) => d.online).length;
+  const totalDevices = zone.devices.length;
+  const offlineCount = Math.max(0, totalDevices - onlineCount);
+  const deviceLabel =
+    totalDevices === 0
+      ? 'No devices'
+      : totalDevices === 1
+        ? zone.devices[0].name ?? zone.devices[0].deviceId
+        : `${totalDevices} devices`;
 
   return (
     <a className="card card-link zone-card" href={`/zones/${encodeURIComponent(zone.zoneId)}`}
@@ -122,12 +128,34 @@ function ZoneCard({ zone }: { zone: ZoneSummary }) {
         </div>
 
         <div className="badge">
-          <span className={isOnline ? 'dot dot-ok' : 'dot dot-bad'} />
-          {isOnline ? 'Online' : 'Offline'}
+          <span className={onlineCount > 0 ? 'dot dot-ok' : 'dot dot-bad'} />
+          {onlineCount > 0 ? `Online ${onlineCount}/${totalDevices}` : `Offline ${offlineCount}/${totalDevices}`}
         </div>
       </div>
 
       <div className="zone-body">
+        {totalDevices > 0 ? (
+          <div className="device-table-wrap">
+            <div className="device-table-header">
+              <span>Devices</span>
+              <span className="muted">{onlineCount} online / {offlineCount} offline</span>
+            </div>
+            <div className="device-table">
+              {zone.devices.slice(0, 4).map((d) => (
+                <div key={d.deviceId} className="device-row">
+                  <div className="device-cell device-name">
+                    <span className={d.online ? 'dot dot-ok' : 'dot dot-bad'} />
+                    <span className="device-text">{d.name ?? d.deviceId}</span>
+                  </div>
+                  <div className="device-cell device-status">{d.online ? 'Online' : 'Offline'}</div>
+                  <div className="device-cell device-seen">{d.lastSeenAt ? formatAge(d.lastSeenAt) : 'N/A'}</div>
+                </div>
+              ))}
+              {totalDevices > 4 ? <div className="device-more">+{totalDevices - 4} more</div> : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="metric-grid">
           <Metric label="Temp" value={zone.kpis.airTemp} unit={'\u00B0C'} />
           <Metric label="RH" value={zone.kpis.airRH} unit="%" />
