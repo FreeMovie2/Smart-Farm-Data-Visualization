@@ -39,11 +39,13 @@ export class AlertsController {
     const client = await this.db.pool.connect();
     try {
       const result = await client.query(
-        `SELECT alert_id, farm_id, zone_id, device_id, alert_type, severity, status, message,
-                started_at, acknowledged_at, resolved_at
-         FROM alerts
+        `SELECT a.alert_id, a.farm_id, a.zone_id, a.device_id, a.alert_type, a.severity, a.status, a.message,
+                a.started_at, a.acknowledged_at, a.resolved_at,
+                d.name AS device_name
+         FROM alerts a
+         LEFT JOIN devices d ON d.device_id = a.device_id
          WHERE ${where.join(' AND ')}
-         ORDER BY started_at DESC
+         ORDER BY a.started_at DESC
          LIMIT ${limitParam}`,
         params,
       );
@@ -55,6 +57,7 @@ export class AlertsController {
           farmId: r.farm_id,
           zoneId: r.zone_id,
           deviceId: r.device_id,
+          deviceName: r.device_name,
           type: r.alert_type,
           severity: r.severity,
           status: r.status,

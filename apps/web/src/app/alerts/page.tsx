@@ -9,6 +9,8 @@ type AlertsResponse = {
   alerts: Array<{
     alertId: number;
     zoneId: string;
+    deviceId: string | null;
+    deviceName?: string | null;
     type: string;
     severity: string;
     status: string;
@@ -48,7 +50,8 @@ export default function AlertsPage() {
     const q = queryText.trim().toLowerCase();
     if (!q) return all;
     return all.filter((a) => {
-      const hay = `${a.zoneId} ${a.type} ${a.severity} ${a.status} ${a.message}`.toLowerCase();
+      const deviceLabel = a.deviceName ?? a.deviceId ?? '';
+      const hay = `${deviceLabel} ${a.zoneId} ${a.type} ${a.severity} ${a.status} ${a.message}`.toLowerCase();
       return hay.includes(q);
     });
   }, [data, queryText]);
@@ -80,6 +83,7 @@ export default function AlertsPage() {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Device</th>
                 <th>Zone</th>
                 <th>Type</th>
                 <th>Severity</th>
@@ -93,9 +97,12 @@ export default function AlertsPage() {
                 <tr key={a.alertId}>
                   <td>{a.alertId}</td>
                   <td>
+                    <span>{a.deviceName ?? a.deviceId ?? 'N/A'}</span>
+                  </td>
+                  <td>
                     <a className="link" href={`/zones/${encodeURIComponent(a.zoneId)}`}> {a.zoneId}</a>
                   </td>
-                  <td>{a.type}</td>
+                  <td>{formatAlertType(a.type)}</td>
                   <td>
                     <span className={`badge ${severityClass(a.severity)}`}>{a.severity}</span>
                   </td>
@@ -124,4 +131,18 @@ function severityClass(severity: string) {
   if (key.includes('critical')) return 'badge-critical';
   if (key.includes('warn')) return 'badge-warn';
   return 'badge-info';
+}
+
+function formatAlertType(type: string) {
+  const key = type.toLowerCase();
+  const readable: Record<string, string> = {
+    device_offline: 'Device Offline',
+    rh_high: 'High Humidity',
+    vpd_out_of_range: 'VPD Out of Range',
+    soil_low: 'Soil Moisture Low',
+    ec_out_of_range: 'EC Out of Range',
+    ph_out_of_range: 'pH Out of Range',
+    sensor_stuck: 'Sensor Stuck',
+  };
+  return readable[key] ?? type.replace(/_/g, ' ');
 }
