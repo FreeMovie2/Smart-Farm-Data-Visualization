@@ -17,20 +17,20 @@ export class AlertsController {
     if (!farmId) throw new BadRequestException('Missing farmId');
     const limit = clampInt(limitRaw, 200, 1, 1000);
 
-    const where: string[] = ['farm_id = $1'];
+    const where: string[] = ['a.farm_id = $1'];
     const params: unknown[] = [farmId];
 
     if (zoneId) {
       params.push(zoneId);
-      where.push(`zone_id = $${params.length}`);
+      where.push(`a.zone_id = $${params.length}`);
     }
     if (status) {
       params.push(status);
-      where.push(`status = $${params.length}`);
+      where.push(`a.status = $${params.length}`);
     }
     if (severity) {
       params.push(severity);
-      where.push(`severity = $${params.length}`);
+      where.push(`a.severity = $${params.length}`);
     }
 
     params.push(limit);

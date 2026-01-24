@@ -77,53 +77,56 @@ export class WorkerService implements OnModuleInit {
 
     const [rhWarnAgg, rhCritAgg, tempAgg] = await Promise.all([
       client.query(
-        `SELECT zone_id, farm_id, avg(metric_value) AS avg_rh
+        `SELECT zone_id, farm_id, device_id, avg(metric_value) AS avg_rh
          FROM sensor_readings
          WHERE metric_key = 'airRH' AND ts >= $1 AND ts <= $2
-         GROUP BY zone_id, farm_id`,
+         GROUP BY zone_id, farm_id, device_id`,
         [rhWarnFromIso, nowIso],
       ),
       client.query(
-        `SELECT zone_id, farm_id, avg(metric_value) AS avg_rh
+        `SELECT zone_id, farm_id, device_id, avg(metric_value) AS avg_rh
          FROM sensor_readings
          WHERE metric_key = 'airRH' AND ts >= $1 AND ts <= $2
-         GROUP BY zone_id, farm_id`,
+         GROUP BY zone_id, farm_id, device_id`,
         [rhCritFromIso, nowIso],
       ),
       client.query(
-        `SELECT zone_id, farm_id,
+        `SELECT zone_id, farm_id, device_id,
                 avg(CASE WHEN metric_key='airTemp' THEN metric_value END) AS avg_temp,
                 avg(CASE WHEN metric_key='airRH' THEN metric_value END) AS avg_rh
          FROM sensor_readings
          WHERE metric_key IN ('airTemp','airRH') AND ts >= $1 AND ts <= $2
-         GROUP BY zone_id, farm_id`,
+         GROUP BY zone_id, farm_id, device_id`,
         [vpdFromIso, nowIso],
       ),
     ]);
 
-    const rhWarnByZone = new Map<string, { farmId: string; avgRh: number }>();
-    for (const row of rhWarnAgg.rows as Array<{ zone_id: string; farm_id: string; avg_rh: string | null }>) {
+    const rhWarnByKey = new Map<string, { farmId: string; zoneId: string; deviceId: string; avgRh: number }>();
+    for (const row of rhWarnAgg.rows as Array<{ zone_id: string; farm_id: string; device_id: string; avg_rh: string | null }>) {
       if (row.avg_rh === null) continue;
-      rhWarnByZone.set(row.zone_id, { farmId: row.farm_id, avgRh: Number(row.avg_rh) });
+      const key = `${row.zone_id}::${row.device_id}`;
+      rhWarnByKey.set(key, { farmId: row.farm_id, zoneId: row.zone_id, deviceId: row.device_id, avgRh: Number(row.avg_rh) });
     }
 
-    const rhCritByZone = new Map<string, { farmId: string; avgRh: number }>();
-    for (const row of rhCritAgg.rows as Array<{ zone_id: string; farm_id: string; avg_rh: string | null }>) {
+    const rhCritByKey = new Map<string, { avgRh: number }>();
+    for (const row of rhCritAgg.rows as Array<{ zone_id: string; farm_id: string; device_id: string; avg_rh: string | null }>) {
       if (row.avg_rh === null) continue;
-      rhCritByZone.set(row.zone_id, { farmId: row.farm_id, avgRh: Number(row.avg_rh) });
+      const key = `${row.zone_id}::${row.device_id}`;
+      rhCritByKey.set(key, { avgRh: Number(row.avg_rh) });
     }
 
     let created = 0;
     let resolved = 0;
 
-    for (const [zoneId, warn] of rhWarnByZone) {
-      const crit = rhCritByZone.get(zoneId);
+    for (const [key, warn] of rhWarnByKey) {
+      const crit = rhCritByKey.get(key);
       const shouldOpen = warn.avgRh > rhThreshold;
       const critical = !!crit && crit.avgRh > rhThreshold;
 
       const action = await this.upsertAlert(client, {
         farmId: warn.farmId,
-        zoneId,
+        zoneId: warn.zoneId,
+        deviceId: warn.deviceId,
         alertType: 'rh_high',
         severity: critical ? 'critical' : 'warning',
         message: critical
@@ -135,7 +138,7 @@ export class WorkerService implements OnModuleInit {
       if (action === 'resolved') resolved++;
     }
 
-    for (const row of tempAgg.rows as Array<{ zone_id: string; farm_id: string; avg_temp: string | null; avg_rh: string | null }>) {
+    for (const row of tempAgg.rows as Array<{ zone_id: string; farm_id: string; device_id: string; avg_temp: string | null; avg_rh: string | null }>) {
       if (row.avg_temp === null || row.avg_rh === null) continue;
       const vpd = this.computeVpdKpa(Number(row.avg_temp), Number(row.avg_rh));
       const outOfRange = vpd < vpdMin || vpd > vpdMax;
@@ -143,6 +146,7 @@ export class WorkerService implements OnModuleInit {
       const action = await this.upsertAlert(client, {
         farmId: row.farm_id,
         zoneId: row.zone_id,
+        deviceId: row.device_id,
         alertType: 'vpd_out_of_range',
         severity: 'warning',
         message: `VPD out of range (avg ${vpdWindowMin}m): ${vpd.toFixed(3)} kPa`,
@@ -162,22 +166,23 @@ export class WorkerService implements OnModuleInit {
     const fromIso = new Date(Date.now() - windowMin * 60 * 1000).toISOString();
 
     const result = await client.query(
-      `SELECT zone_id, farm_id, avg(metric_value) AS avg_soil
+      `SELECT zone_id, farm_id, device_id, avg(metric_value) AS avg_soil
        FROM sensor_readings
        WHERE metric_key IN ('soil1','soil2','soil3') AND ts >= $1 AND ts <= $2
-       GROUP BY zone_id, farm_id`,
+       GROUP BY zone_id, farm_id, device_id`,
       [fromIso, nowIso],
     );
 
     let created = 0;
     let resolved = 0;
-    for (const row of result.rows as Array<{ zone_id: string; farm_id: string; avg_soil: string | null }>) {
+    for (const row of result.rows as Array<{ zone_id: string; farm_id: string; device_id: string; avg_soil: string | null }>) {
       if (row.avg_soil === null) continue;
       const avgSoil = Number(row.avg_soil);
       const low = avgSoil < threshold;
       const action = await this.upsertAlert(client, {
         farmId: row.farm_id,
         zoneId: row.zone_id,
+        deviceId: row.device_id,
         alertType: 'soil_low',
         severity: 'warning',
         message: `Soil moisture low (avg ${windowMin}m): ${avgSoil.toFixed(2)} < ${threshold}`,
@@ -199,24 +204,25 @@ export class WorkerService implements OnModuleInit {
     const fromIso = new Date(Date.now() - windowMin * 60 * 1000).toISOString();
 
     const result = await client.query(
-      `SELECT zone_id, farm_id,
+      `SELECT zone_id, farm_id, device_id,
               avg(CASE WHEN metric_key='ec' THEN metric_value END) AS avg_ec,
               avg(CASE WHEN metric_key='ph' THEN metric_value END) AS avg_ph
        FROM sensor_readings
        WHERE metric_key IN ('ec','ph') AND ts >= $1 AND ts <= $2
-       GROUP BY zone_id, farm_id`,
+       GROUP BY zone_id, farm_id, device_id`,
       [fromIso, nowIso],
     );
 
     let created = 0;
     let resolved = 0;
-    for (const row of result.rows as Array<{ zone_id: string; farm_id: string; avg_ec: string | null; avg_ph: string | null }>) {
+    for (const row of result.rows as Array<{ zone_id: string; farm_id: string; device_id: string; avg_ec: string | null; avg_ph: string | null }>) {
       if (row.avg_ec !== null) {
         const avgEc = Number(row.avg_ec);
         const out = avgEc < ecMin || avgEc > ecMax;
         const action = await this.upsertAlert(client, {
           farmId: row.farm_id,
           zoneId: row.zone_id,
+          deviceId: row.device_id,
           alertType: 'ec_out_of_range',
           severity: 'warning',
           message: `EC out of range (avg ${windowMin}m): ${avgEc.toFixed(2)} (min=${ecMin}, max=${ecMax})`,
@@ -232,6 +238,7 @@ export class WorkerService implements OnModuleInit {
         const action = await this.upsertAlert(client, {
           farmId: row.farm_id,
           zoneId: row.zone_id,
+          deviceId: row.device_id,
           alertType: 'ph_out_of_range',
           severity: 'warning',
           message: `pH out of range (avg ${windowMin}m): ${avgPh.toFixed(2)} (min=${phMin}, max=${phMax})`,
@@ -252,13 +259,13 @@ export class WorkerService implements OnModuleInit {
 
     const keys = ['airTemp', 'airRH', 'soil1', 'soil2', 'soil3', 'par', 'ec', 'ph', 'leafWet'];
     const result = await client.query(
-      `SELECT zone_id, farm_id, metric_key,
+      `SELECT zone_id, farm_id, device_id, metric_key,
               count(*)::int AS n,
               min(metric_value) AS min_v,
               max(metric_value) AS max_v
        FROM sensor_readings
        WHERE metric_key = ANY($1) AND ts >= $2 AND ts <= $3
-       GROUP BY zone_id, farm_id, metric_key`,
+       GROUP BY zone_id, farm_id, device_id, metric_key`,
       [keys, fromIso, nowIso],
     );
 
@@ -267,6 +274,7 @@ export class WorkerService implements OnModuleInit {
     for (const row of result.rows as Array<{
       zone_id: string;
       farm_id: string;
+      device_id: string;
       metric_key: string;
       n: number;
       min_v: number;
@@ -277,6 +285,7 @@ export class WorkerService implements OnModuleInit {
       const action = await this.upsertAlert(client, {
         farmId: row.farm_id,
         zoneId: row.zone_id,
+        deviceId: row.device_id,
         alertType: 'sensor_stuck',
         severity: 'warning',
         message: `Sensor stuck: ${row.metric_key} (range<=${epsilon} over ${windowMin}m)`,
@@ -308,13 +317,23 @@ export class WorkerService implements OnModuleInit {
   ): Promise<'created' | 'updated' | 'resolved' | 'noop'> {
     await client.query('BEGIN');
 
+    const existingParams: unknown[] = [input.farmId, input.zoneId, input.alertType];
+    let existingWhere =
+      "farm_id = $1 AND zone_id = $2 AND alert_type = $3 AND status IN ('active','acknowledged')";
+    if (input.deviceId) {
+      existingParams.push(input.deviceId);
+      existingWhere += ` AND device_id = $${existingParams.length}`;
+    } else {
+      existingWhere += ' AND device_id IS NULL';
+    }
+
     const existing = await client.query(
       `SELECT alert_id, status
        FROM alerts
-       WHERE farm_id = $1 AND zone_id = $2 AND alert_type = $3 AND status IN ('active','acknowledged')
+       WHERE ${existingWhere}
        ORDER BY started_at DESC
        LIMIT 1`,
-      [input.farmId, input.zoneId, input.alertType],
+      existingParams,
     );
 
     if (input.shouldBeOpen) {
