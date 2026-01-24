@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '../../lib/api';
 import { DEFAULT_FARM_ID } from '../../lib/config';
+import { formatMetricValue, getMetricLabel, getMetricUnit } from '../../lib/metrics';
 import { usePolling } from '../../lib/polling';
 
 type DashboardResponse = {
@@ -157,12 +158,12 @@ function ZoneCard({ zone }: { zone: ZoneSummary }) {
         ) : null}
 
         <div className="metric-grid">
-          <Metric label="Temp" value={zone.kpis.airTemp} unit={'\u00B0C'} />
-          <Metric label="RH" value={zone.kpis.airRH} unit="%" />
-          <Metric label="VPD" value={zone.kpis.vpd} unit="kPa" />
-          <Metric label="Soil Avg" value={zone.kpis.soilAvg} unit="%" />
-          <Metric label="PAR" value={zone.kpis.par} />
-          <Metric label="EC" value={zone.kpis.ec} />
+          <Metric metricKey="airTemp" value={zone.kpis.airTemp} />
+          <Metric metricKey="airRH" value={zone.kpis.airRH} />
+          <Metric metricKey="vpd" value={zone.kpis.vpd} />
+          <Metric metricKey="soilAvg" value={zone.kpis.soilAvg} />
+          <Metric metricKey="par" value={zone.kpis.par} />
+          <Metric metricKey="ec" value={zone.kpis.ec} />
         </div>
 
         <div className="zone-footer">
@@ -177,7 +178,9 @@ function ZoneCard({ zone }: { zone: ZoneSummary }) {
   );
 }
 
-function Metric({ label, value, unit }: { label: string; value: number | undefined; unit?: string }) {
+function Metric({ metricKey, value }: { metricKey: string; value: number | undefined }) {
+  const label = getMetricLabel(metricKey);
+  const unit = getMetricUnit(metricKey);
   return (
     <div className="metric">
       <div className="metric-label">
@@ -185,7 +188,7 @@ function Metric({ label, value, unit }: { label: string; value: number | undefin
         <span className="dot" style={{ width: 6, height: 6, background: 'rgba(19,23,20,0.28)' }} />
       </div>
       <div className="metric-value">
-        {typeof value === 'number' ? value.toFixed(2) : 'N/A'}
+        {formatMetricValue(metricKey, typeof value === 'number' ? value : null)}
         {unit ? <span className="metric-unit">{unit}</span> : null}
       </div>
     </div>

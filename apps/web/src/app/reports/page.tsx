@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../lib/api';
 import { API_BASE_URL, DEFAULT_FARM_ID } from '../../lib/config';
+import { getMetricLabel } from '../../lib/metrics';
 
 type SummaryResponse = {
   zoneId: string;
@@ -136,7 +137,7 @@ export default function ReportsPage() {
                   <tbody>
                     {summaryRows.map(([k, v]) => (
                       <tr key={k}>
-                        <td>{k}</td>
+                        <td>{getMetricLabel(k)}</td>
                         <td>{v.avg.toFixed(3)}</td>
                         <td>{v.min.toFixed(3)}</td>
                         <td>{v.max.toFixed(3)}</td>
@@ -155,14 +156,14 @@ export default function ReportsPage() {
             <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               Metric
               <select className="input input--compact" value={compareMetricKey} onChange={(e) => setCompareMetricKey(e.target.value)}>
-                <option value="airTemp">airTemp</option>
-                <option value="airRH">airRH</option>
-                <option value="soil1">soil1</option>
-                <option value="soil2">soil2</option>
-                <option value="soil3">soil3</option>
-                <option value="par">par</option>
-                <option value="ec">ec</option>
-                <option value="ph">ph</option>
+                <option value="airTemp">{getMetricLabel('airTemp')}</option>
+                <option value="airRH">{getMetricLabel('airRH')}</option>
+                <option value="soil1">{getMetricLabel('soil1')}</option>
+                <option value="soil2">{getMetricLabel('soil2')}</option>
+                <option value="soil3">{getMetricLabel('soil3')}</option>
+                <option value="par">{getMetricLabel('par')}</option>
+                <option value="ec">{getMetricLabel('ec')}</option>
+                <option value="ph">{getMetricLabel('ph')}</option>
               </select>
             </label>
           </div>

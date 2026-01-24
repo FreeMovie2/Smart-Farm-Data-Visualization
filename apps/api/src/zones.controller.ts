@@ -7,16 +7,22 @@ export class ZonesController {
   constructor(private readonly db: DbService) {}
 
   @Get('/v1/zones/:zoneId/latest')
-  async latest(@Param('zoneId') zoneId: string) {
+  async latest(@Param('zoneId') zoneId: string, @Query('deviceId') deviceId: string | undefined) {
     const client = await this.db.pool.connect();
     try {
+      const params: string[] = [zoneId];
+      let deviceFilter = '';
+      if (deviceId) {
+        params.push(deviceId);
+        deviceFilter = ` AND device_id = $2`;
+      }
       const result = await client.query(
         `SELECT DISTINCT ON (metric_key)
            metric_key, metric_value, ts
          FROM sensor_readings
-         WHERE zone_id = $1
+         WHERE zone_id = $1${deviceFilter}
          ORDER BY metric_key, ts DESC`,
-        [zoneId],
+        params,
       );
 
       const metrics: Record<string, number> = {};
@@ -37,6 +43,7 @@ export class ZonesController {
   async series(
     @Param('zoneId') zoneId: string,
     @Query('metricKey') metricKey: string | undefined,
+    @Query('deviceId') deviceId: string | undefined,
     @Query('from') fromRaw: string | undefined,
     @Query('to') toRaw: string | undefined,
     @Query('rollup') rollupRaw: string | undefined,
@@ -53,14 +60,21 @@ export class ZonesController {
 
     const client = await this.db.pool.connect();
     try {
+      const params: Array<string | number> = [zoneId, metricKey, from.toISOString(), to.toISOString(), limit];
+      let deviceFilter = '';
+      if (deviceId) {
+        params.unshift(deviceId);
+        deviceFilter = ` AND device_id = $1`;
+      }
+
       if (rollup === 'raw') {
         const result = await client.query(
           `SELECT ts, metric_value AS value
            FROM sensor_readings
-           WHERE zone_id = $1 AND metric_key = $2 AND ts >= $3 AND ts <= $4
+           WHERE zone_id = $${deviceId ? 2 : 1} AND metric_key = $${deviceId ? 3 : 2} AND ts >= $${deviceId ? 4 : 3} AND ts <= $${deviceId ? 5 : 4}${deviceFilter}
            ORDER BY ts
-           LIMIT $5`,
-          [zoneId, metricKey, from.toISOString(), to.toISOString(), limit],
+           LIMIT $${deviceId ? 6 : 5}`,
+          deviceId ? params : [zoneId, metricKey, from.toISOString(), to.toISOString(), limit],
         );
 
         return {
@@ -77,11 +91,11 @@ export class ZonesController {
       const result = await client.query(
         `SELECT time_bucket('${bucket}', ts) AS ts, avg(metric_value) AS value
          FROM sensor_readings
-         WHERE zone_id = $1 AND metric_key = $2 AND ts >= $3 AND ts <= $4
+         WHERE zone_id = $${deviceId ? 2 : 1} AND metric_key = $${deviceId ? 3 : 2} AND ts >= $${deviceId ? 4 : 3} AND ts <= $${deviceId ? 5 : 4}${deviceFilter}
          GROUP BY 1
          ORDER BY 1
-         LIMIT $5`,
-        [zoneId, metricKey, from.toISOString(), to.toISOString(), limit],
+         LIMIT $${deviceId ? 6 : 5}`,
+        deviceId ? params : [zoneId, metricKey, from.toISOString(), to.toISOString(), limit],
       );
 
       return {

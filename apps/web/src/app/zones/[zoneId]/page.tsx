@@ -3,13 +3,19 @@
 import { use, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../../lib/api';
 import { LineChart } from '../../../components/LineChart';
+import { formatMetricValue, getMetricLabel, getMetricUnit } from '../../../lib/metrics';
 import { usePolling } from '../../../lib/polling';
+import { DEFAULT_FARM_ID } from '../../../lib/config';
 
 type LatestResponse = { zoneId: string; lastUpdatedAt?: string; metrics: Record<string, number> };
 type SeriesResponse = { points: Array<{ ts: string; value: number | null }> };
 type RangePreset = '24h' | '7d' | '30d';
 type Rollup = '5m' | '1h' | 'raw';
 type RangeMode = RangePreset | 'custom';
+
+type DevicesResponse = {
+  devices: Array<{ deviceId: string; zoneId: string; name: string; lastSeenAt: string | null; online: boolean }>;
+};
 
 export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: string }> }) {
   const { zoneId } = use(params);
@@ -22,11 +28,15 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
   const [dateError, setDateError] = useState<string | null>(null);
   const [customFrom, setCustomFrom] = useState<string>(() => toDateInputValue(daysAgo(7)));
   const [customTo, setCustomTo] = useState<string>(() => toDateInputValue(new Date()));
+  const [devices, setDevices] = useState<DevicesResponse | null>(null);
+  const [deviceId, setDeviceId] = useState<string>('');
 
   const availableMetricKeys = useMemo(() => {
-    if (!latest) return ['airTemp', 'airRH', 'soil1', 'soil2', 'soil3', 'par', 'ec', 'ph'];
+    if (!latest) return ['airTemp', 'airRH', 'soil1', 'soil2', 'soil3', 'par', 'ec', 'ph', 'leafWet'];
     return Object.keys(latest.metrics).sort();
   }, [latest]);
+
+  const metricLabel = getMetricLabel(metricKey);
 
   useEffect(() => {
     if (range === '24h') setRollup('5m');
@@ -40,6 +50,19 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
       setRollup(diffDays <= 2 ? '5m' : '1h');
     }
   }, [range, customFrom, customTo]);
+
+  const loadDevices = async () => {
+    try {
+      const res = await apiGet<DevicesResponse>(`/v1/devices?farmId=${encodeURIComponent(DEFAULT_FARM_ID)}`);
+      const scoped = { devices: res.devices.filter((d) => d.zoneId === zoneId) };
+      setDevices(scoped);
+      if (!deviceId && scoped.devices.length > 0) {
+        setDeviceId(scoped.devices[0].deviceId);
+      }
+    } catch (e) {
+      // ignore; device selection optional
+    }
+  };
 
   const load = async () => {
     try {
@@ -79,10 +102,12 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
               ? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
               : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
       }
+
+      const deviceQuery = deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : '';
       const [l, s] = await Promise.all([
-        apiGet<LatestResponse>(`/v1/zones/${encodeURIComponent(zoneId)}/latest`),
+        apiGet<LatestResponse>(`/v1/zones/${encodeURIComponent(zoneId)}/latest?${deviceQuery}`),
         apiGet<SeriesResponse>(
-          `/v1/zones/${encodeURIComponent(zoneId)}/series?metricKey=${encodeURIComponent(metricKey)}&rollup=${encodeURIComponent(rollup)}&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+          `/v1/zones/${encodeURIComponent(zoneId)}/series?metricKey=${encodeURIComponent(metricKey)}&rollup=${encodeURIComponent(rollup)}&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${deviceQuery}`,
         ),
       ]);
       setLatest(l);
@@ -93,7 +118,9 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
   };
 
   usePolling(() => void load(), 15_000);
-  useEffect(() => void load(), [zoneId, metricKey, range, rollup, customFrom, customTo]);
+  usePolling(() => void loadDevices(), 30_000);
+  useEffect(() => void loadDevices(), [zoneId]);
+  useEffect(() => void load(), [zoneId, metricKey, range, rollup, customFrom, customTo, deviceId]);
 
   return (
     <main>
@@ -104,11 +131,27 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              Device
+              <select
+                className="input input--compact"
+                value={deviceId}
+                onChange={(e) => setDeviceId(e.target.value)}
+                disabled={!devices || devices.devices.length === 0}
+              >
+                {(devices?.devices ?? []).map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.name ?? d.deviceId}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               Metric
               <select className="input input--compact" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}>
                 {availableMetricKeys.map((k) => (
                   <option key={k} value={k}>
-                    {k}
+                    {getMetricLabel(k)}
                   </option>
                 ))}
               </select>
@@ -158,7 +201,7 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
         ) : null}
 
         <div style={{ marginTop: 8 }}>
-          {series ? <LineChart title={`${metricKey} (${range}, ${rollup})`} points={series.points} /> : <p className="muted">Loading chart...</p>}
+          {series ? <LineChart title={`${metricLabel} (${range}, ${rollup})`} points={series.points} /> : <p className="muted">Loading chart...</p>}
         </div>
       </section>
 
@@ -179,10 +222,13 @@ export default function ZoneDetailPage({ params }: { params: Promise<{ zoneId: s
               .map(([k, v]) => (
                 <div key={k} className="metric">
                   <div className="metric-label">
-                    <span>{k}</span>
+                    <span>{getMetricLabel(k)}</span>
                     <span className="dot" style={{ width: 6, height: 6, background: 'rgba(19,23,20,0.28)' }} />
                   </div>
-                  <div className="metric-value">{v.toFixed(3)}</div>
+                  <div className="metric-value">
+                    {formatMetricValue(k, v)}
+                    {getMetricUnit(k) ? <span className="metric-unit">{getMetricUnit(k)}</span> : null}
+                  </div>
                 </div>
               ))}
           </div>
